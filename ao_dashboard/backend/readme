@@ -3,4 +3,4 @@
 │   ├── state.go            # Defines JSON struct, serialization to disk
 │   ├── pinger.go           # Latency checker (ICMP/TCP ping to AO server)
 │   ├── config.go           # Config (paths to AO logs, refresh rates, etc)
-│   └── go.mod 
+│   └── go.mod              # Go module definition (dependencies, version)
