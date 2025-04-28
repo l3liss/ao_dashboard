@@ -1,0 +1,22 @@
+ao_dashboard/
+├── backend/               # <== Go backend that watches AO logs and saves state
+│   ├── main.go             # Entry point for backend
+│   ├── tracker.go          # Log parsing, updating session state
+│   ├── state.go            # Defines JSON struct, serialization to disk
+│   ├── pinger.go           # Latency checker (ICMP/TCP ping to AO server)
+│   ├── config.go           # Config (paths to AO logs, refresh rates, etc)
+│   └── go.mod              # Go module definition (dependencies, version)
+│
+├── frontend/              # <== Python frontend that displays dashboard
+│   ├── gui.py              # PyQt6 window (reads state.json, displays)
+│   ├── main.py             # Launches the GUI
+│   ├── reader.py           # Helper to read state.json periodically
+│   └── requirements.txt    # Python dependencies
+│
+├── shared/                # <== Shared assets
+│   ├── state.json          # Live session state (auto-updated by backend)
+│   └── settings.json       # (optional) Config file for user preferences
+│
+├── README.md               # Project setup instructions
+├── LICENSE                 # (optional) Open-source license (MIT recommended)
+└── run.sh                  # Script to start both backend and frontend easily
