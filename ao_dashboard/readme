@@ -1,22 +1,107 @@
-ao_dashboard/
-├── backend/               # <== Go backend that watches AO logs and saves state
-│   ├── main.go             # Entry point for backend
-│   ├── tracker.go          # Log parsing, updating session state
-│   ├── state.go            # Defines JSON struct, serialization to disk
-│   ├── pinger.go           # Latency checker (ICMP/TCP ping to AO server)
-│   ├── config.go           # Config (paths to AO logs, refresh rates, etc)
-│   └── go.mod              # Go module definition (dependencies, version)
-│
-├── frontend/              # <== Python frontend that displays dashboard
-│   ├── gui.py              # PyQt6 window (reads state.json, displays)
-│   ├── main.py             # Launches the GUI
-│   ├── reader.py           # Helper to read state.json periodically
-│   └── requirements.txt    # Python dependencies
-│
-├── shared/                # <== Shared assets
-│   ├── state.json          # Live session state (auto-updated by backend)
-│   └── settings.json       # (optional) Config file for user preferences
-│
-├── README.md               # Project setup instructions
-├── LICENSE                 # (optional) Open-source license (MIT recommended)
-└── run.sh                  # Script to start both backend and frontend easily
+📜 README.md
+
+# Anarchy Online External Tracker
+
+🧠 **Overview**
+
+This project provides a real-time external dashboard for *Anarchy Online* players.  
+It parses live log files (Chat.log and System.log), tracks XP, credits, loot, chat history, zone changes, critical hits, and network latency — without interfering with the game window.
+
+Built using:
+- 🟦 **Go backend** for high-performance log parsing, ping monitoring, and state management
+- 🟧 **Python (PyQt6) frontend** for a dark-themed second-monitor dashboard
+
+---
+
+## 📂 Project Structure
+
+ao_dashboard/ ├── backend/ # Go backend (logs + pinger) │ ├── config.go │ ├── main.go │ ├── pinger.go │ ├── state.go │ ├── tracker.go │ └── go.mod ├── frontend/ # Python frontend (GUI) │ ├── gui.py │ ├── main.py │ ├── reader.py │ └── requirements.txt ├── shared/ # Shared live state file │ └── state.json ├── README.md └── run.sh # Start backend + frontend together
+
+
+---
+
+## 🚀 Getting Started
+
+### 1. Install Requirements
+
+#### Backend (Go)
+- Install Go 1.21+ from [https://golang.org/dl/](https://golang.org/dl/)
+- Verify install: `go version`
+
+#### Frontend (Python)
+- Install Python 3.10+ from [https://python.org/](https://python.org/)
+- Install required libraries:
+
+```bash
+cd frontend
+pip install -r requirements.txt
+
+2. Configuration
+
+Optional: Edit backend/config.json to adjust:
+
+    chat_log_path: Path to your AO Chat.log
+
+    system_log_path: Path to your AO System.log
+
+    state_file_path: Where shared JSON is stored (default ../shared/state.json)
+
+    ping_address: Address to ping for latency checking (default 8.8.8.8)
+
+    ping_interval_ms: How often to ping (in milliseconds)
+
+If config.json is missing, default paths are used.
+3. Running the Project
+
+You can manually start each:
+Backend:
+
+cd backend
+go run main.go
+
+Frontend:
+
+cd frontend
+python3 main.py
+
+Or use the provided launcher:
+
+bash run.sh
+
+🎨 Features
+Feature	Details
+XP Tracking	Live XP gains parsed from System.log
+Credit Counter	Total credits earned this session
+Zone Changes	Current zone displayed
+Recent Loot	Shows last 20 loots
+Chat History	Shows last 100 lines, scrollable
+Critical Hit Tracker	Displays latest and biggest crits
+Latency Monitor	Live ping to configured server
+Dark Mode Dashboard	Optimized for second monitor immersion
+🛠️ Future Roadmap
+
+    Real XP bar based on level-specific XP
+
+    XP/hour tracking and session graphs
+
+    Sound alerts for high-value loot or big crits
+
+    Loot value calculator
+
+    Auto-summary of session stats
+
+🧪 Developer Notes
+
+    Backend auto-saves state.json every 1 second.
+
+    Frontend auto-refreshes view every 500 milliseconds.
+
+    If backend or frontend crash, they can be restarted separately — no dependency.
+
+📜 License
+
+TBD — Recommend MIT License for maximum flexibility.
+👾 Credits
+
+Built with ❤️ by the Dev Team.
+Special thanks to the Anarchy Online community.
