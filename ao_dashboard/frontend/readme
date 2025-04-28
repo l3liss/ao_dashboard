@@ -1,0 +1,4 @@
+│   ├── gui.py              # PyQt6 window (reads state.json, displays)
+│   ├── main.py             # Launches the GUI
+│   ├── reader.py           # Helper to read state.json periodically
+│   └── requirements.txt    # Python dependencies
