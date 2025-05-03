@@ -5,7 +5,6 @@ import (
     "os"
     "os/signal"
     "syscall"
-    "time"
 )
 
 func main() {
@@ -20,6 +19,10 @@ func main() {
     // Create tracker state
     trackerState := NewTrackerState()
 
+    // Start periodic autosave to state.json
+    trackerState.StartAutoSave(config.StateFilePath)
+    fmt.Println("State autosave started.")
+
     // Start tracker (logs)
     tracker := NewTracker(config, trackerState)
     tracker.Start()
@@ -30,19 +33,7 @@ func main() {
     pinger.Start()
     fmt.Println("Pinger started.")
 
-    // Start periodic state saving
-    go func() {
-        for {
-            err := trackerState.SaveToFile(config.StateFilePath)
-            if err != nil {
-                fmt.Println("Error saving state:", err)
-            }
-            time.Sleep(1 * time.Second) // Save every 1 second
-        }
-    }()
-    fmt.Println("State autosave started.")
-
-    // Wait for CTRL+C to exit
+    // Block until CTRL+C
     c := make(chan os.Signal, 1)
     signal.Notify(c, os.Interrupt, syscall.SIGTERM)
     <-c

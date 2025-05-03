@@ -2,46 +2,61 @@ package main
 
 import (
     "net"
+    "os/exec"
+    "strconv"
+    "strings"
     "time"
 )
 
-// Pinger handles measuring latency to a server
+// Pinger periodically measures ICMP latency to the configured host and updates the state
 type Pinger struct {
-    config Config
-    state  *TrackerState
+    cfg   Config
+    state *TrackerState
 }
 
-// NewPinger creates a new Pinger
+// NewPinger constructs a Pinger with the given config and state
 func NewPinger(cfg Config, state *TrackerState) *Pinger {
-    return &Pinger{
-        config: cfg,
-        state:  state,
-    }
+    return &Pinger{cfg: cfg, state: state}
 }
 
-// Start begins periodic pinging
+// Start begins the ping loop in a separate goroutine
 func (p *Pinger) Start() {
     go func() {
+        // Extract host (ignore port if present)
+        host, _, err := net.SplitHostPort(p.cfg.PingAddress)
+        if err != nil {
+            host = p.cfg.PingAddress
+        }
         for {
-            latency := p.pingOnce(p.config.PingAddress)
-            if latency >= 0 {
-                p.state.UpdateLatency(latency)
+            // Use system ping for ICMP
+            cmd := exec.Command("ping", "-c", "1", "-W", "1", host)
+            out, err := cmd.CombinedOutput()
+            var latencyMs int
+            if err != nil {
+                // fmt.Println("[PING] Error pinging", host, err)
+                latencyMs = -1
+            } else {
+                // parse e.g. "time=23.4 ms"
+                s := string(out)
+                if idx := strings.Index(s, "time="); idx != -1 {
+                    part := s[idx+5:]
+                    fields := strings.Fields(part)
+                    if len(fields) > 0 {
+                        msStr := strings.TrimSuffix(fields[0], "ms")
+                        msStr = strings.TrimSpace(strings.TrimSuffix(msStr, "ms"))
+                        if f, err := strconv.ParseFloat(msStr, 64); err == nil {
+                            latencyMs = int(f)
+                        }
+                    }
+                }
+                // fallback if parsing failed
+                if latencyMs == 0 {
+                    latencyMs = int(time.Since(time.Now()).Milliseconds())
+                }
             }
-            time.Sleep(p.config.PingInterval)
+            p.state.UpdateLatency(latencyMs)
+            time.Sleep(p.cfg.PingInterval)
         }
     }()
 }
 
-// pingOnce pings the server once using TCP and measures round-trip time
-func (p *Pinger) pingOnce(address string) int {
-    start := time.Now()
-
-    conn, err := net.DialTimeout("tcp", net.JoinHostPort(address, "80"), 1*time.Second)
-    if err != nil {
-        return -1
-    }
-    conn.Close()
-
-    elapsed := time.Since(start)
-    return int(elapsed.Milliseconds())
-}

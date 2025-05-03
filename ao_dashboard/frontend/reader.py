@@ -1,9 +1,12 @@
 import json
+import os
 
-def load_state(file_path):
+def load_state(path):
+    if not os.path.exists(path):
+        return None
     try:
-        with open(file_path, 'r') as f:
+        with open(path, 'r') as f:
             return json.load(f)
-    except Exception as e:
-        print(f"Failed to load state.json: {e}")
-        return {}
+    except json.JSONDecodeError:
+        return None
+

@@ -1,7 +1,9 @@
 {
-  "chat_log_path": "./Chat.log",
-  "system_log_path": "./System.log",
+  "chat_log_path": "/home/l3ox/Storage/Projects/anarchy/ao_logs/chat.log",
+  "system_log_path": "/home/l3ox/Storage/Projects/anarchy/ao_logs/combat.log",
+  "loot_log_path": "/home/l3ox/Storage/Projects/anarchy/ao_logs/loot.log",
   "state_file_path": "../shared/state.json",
-  "ping_address": "37.18.192.41",
+  "ping_address": "37.18.192.41:7505",
   "ping_interval_ms": 5000
 }
+
