@@ -2,7 +2,7 @@
 
 > **Status:** Early Alpha  |  **Audience:** Froob‑friendly traders & AO tinkerers  |  **License:** MIT
 
-A cross‑platform, open‑source overlay that turns Anarchy Online chat logs into **live combat, loot, and economy insights**.
+A linux based, open‑source overlay that turns Anarchy Online chat logs into **live combat, loot, and economy insights**.
 Built as a split‑stack app for second monitor viewing of game statistics.
 
 * **Backend:** Go 1.22 — tails logfiles, parses events, maintains a JSON state & REST‑ish API.
