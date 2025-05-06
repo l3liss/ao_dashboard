@@ -1,2 +1,0 @@
-│   ├── state.json          # Live session state (auto-updated by backend)
-│   └── settings.json       # (optional) Config file for user preferences
