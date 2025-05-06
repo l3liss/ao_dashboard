@@ -3,6 +3,7 @@
   "system_log_path": "/home/l3ox/Storage/Projects/anarchy/ao_logs/combat.log",
   "loot_log_path": "/home/l3ox/Storage/Projects/anarchy/ao_logs/loot.log",
   "state_file_path": "../shared/state.json",
+  "CharacterName": "Rustbank",
   "ping_address": "37.18.192.41:7505",
   "ping_interval_ms": 5000
 }

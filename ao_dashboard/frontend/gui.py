@@ -10,7 +10,7 @@ import re
 from html import escape
 
 # Replace this with your character's exact name as it appears in chat metadata
-MY_NAME = "Rustbank"
+MY_NAME = CONFIG.get("CharacterName")  # <- comes from JSON
 
 # Determine config.json path: try frontend then backend
 import json, os
