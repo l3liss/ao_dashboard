@@ -55,8 +55,7 @@ anarchy/
 
 ```bash
 # 1. Clone (HTTPS/GPG‑signed commit friendly)
-$ git clone https://github.com/YOURNAME/anarchy-dashboard.git
-$ cd anarchy-dashboard/anarchy
+$ git clone https://github.com/l3liss/ao_dashboard.git
 
 # 2. Build backend (requires Go 1.22+)
 $ cd ao_dashboard/backend && go build -o ../../bin/ao_backend && cd ../..
