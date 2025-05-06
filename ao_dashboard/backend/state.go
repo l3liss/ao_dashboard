@@ -9,56 +9,52 @@ import (
     "time"
 )
 
-// TimedHit represents a timestamped damage event
-type TimedHit struct {
-    Time   int64
-    Amount int
-}
-
 // TrackerState holds all tracked session data
+// Includes stats, chat/loot history, and custom DPS/combat calculations.
 type TrackerState struct {
-    XP              int      `json:"xp"`
-    Level           int      `json:"level"`
-    Credits         int      `json:"credits"`
-    Zone            string   `json:"zone"`
-    ChatHistory     []string `json:"chat_history"`
-    RecentLoot      []string `json:"recent_loot"`
-    BiggestCrit     int      `json:"biggest_crit"`
-    LatestCrit      int      `json:"latest_crit"`
-    LatencyMS       int      `json:"latency_ms"`
-    PlayersOnline   int      `json:"players_online"`
-    StartTime       int64    `json:"start_time"`
+    XP               int       `json:"xp"`
+    Level            int       `json:"level"`
+    Credits          int       `json:"credits"`
+    Zone             string    `json:"zone"`
+    ChatHistory      []string  `json:"chat_history"`
+    RecentLoot       []string  `json:"recent_loot"`
+    BiggestCrit      int       `json:"biggest_crit"`
+    LatestCrit       int       `json:"latest_crit"`
+    LatencyMS        int       `json:"latency_ms"`
+    PlayersOnline    int       `json:"players_online"`
+    StartTime        int64     `json:"start_time"`
 
-    // Internal, not serialized
-    DamageHistory   []TimedHit `json:"-"`
-    TotalDamage     int        `json:"-"`
-    CombatStartTime int64      `json:"-"`
+    // Combat tracking
+    CombatStartTime  int64     `json:"-"` // time of first hit in current combat (ms)
+    TotalDamage      int       `json:"-"` // sum of damage in current combat
+    LastHitTime      int64     `json:"-"` // time of last hit (ms)
+    CombatDPSHistory []float64 `json:"-"` // recent combat DPS values
 
     // Persisted DPS metrics
-    LastBurstDPS    int        `json:"dps_12s"`
-    LastSessionDPS  int        `json:"dps_session"`
+    LastCombatDPS    int       `json:"dps_12s"`    // current combat DPS (first to last hit)
+    LastSessionDPS   int       `json:"dps_session"` // average over recent combats
 
-    mutex           sync.Mutex
+    mutex            sync.Mutex
 }
 
 const (
     maxChatLines = 50
     maxLootItems = 20
+    maxCombats   = 30
 )
 
-// NewTrackerState loads existing state or returns defaults
-func NewTrackerState() *TrackerState {
-    state, err := LoadTrackerState("../shared/state.json")
+// NewTrackerState loads existing state file or returns a new state
+func NewTrackerState(path string) *TrackerState {
+    state, err := LoadTrackerState(path)
     if err != nil {
         fmt.Println("[STATE] initializing new state:", err)
-        return &TrackerState{
-            Level:          1,
-            Zone:           "Unknown",
-            StartTime:      time.Now().Unix(),
-            ChatHistory:    make([]string, 0, maxChatLines),
-            RecentLoot:     make([]string, 0, maxLootItems),
-            LastBurstDPS:   0,
-            LastSessionDPS: 0,
+        state = &TrackerState{
+            Level:            1,
+            Zone:             "Unknown",
+            StartTime:        time.Now().Unix(),
+            ChatHistory:      make([]string, 0, maxChatLines),
+            RecentLoot:       make([]string, 0, maxLootItems),
+            CombatDPSHistory: make([]float64, 0, maxCombats),
         }
     }
     if state.StartTime == 0 {
@@ -67,14 +63,13 @@ func NewTrackerState() *TrackerState {
     return state
 }
 
-// LoadTrackerState reads state from JSON file
+// LoadTrackerState reads JSON state from disk
 func LoadTrackerState(path string) (*TrackerState, error) {
     f, err := os.Open(path)
     if err != nil {
         return nil, err
     }
     defer f.Close()
-
     data, err := io.ReadAll(f)
     if err != nil {
         return nil, err
@@ -86,7 +81,7 @@ func LoadTrackerState(path string) (*TrackerState, error) {
     return &state, nil
 }
 
-// SaveToFile writes state atomically to disk
+// SaveToFile writes state back to disk atomically
 func (s *TrackerState) SaveToFile(path string) error {
     s.mutex.Lock()
     defer s.mutex.Unlock()
@@ -106,7 +101,7 @@ func (s *TrackerState) SaveToFile(path string) error {
     return os.Rename(tmp, path)
 }
 
-// StartAutoSave begins periodic state saves and DPS updates
+// StartAutoSave begins periodic DPS updates and disk saves
 func (s *TrackerState) StartAutoSave(path string) {
     go func() {
         for {
@@ -119,121 +114,101 @@ func (s *TrackerState) StartAutoSave(path string) {
     }()
 }
 
-// UpdateDPS recalculates burst and session DPS
+// UpdateDPS recalculates current combat and session DPS
 func (s *TrackerState) UpdateDPS() {
     s.mutex.Lock()
     defer s.mutex.Unlock()
-    s.LastBurstDPS = s.calculateBurstDPSLocked()
-    s.LastSessionDPS = s.calculateSessionDPSLocked()
-}
 
-// UpdateXP safely increments XP
-func (s *TrackerState) UpdateXP(xp int) {
-    s.mutex.Lock()
-    defer s.mutex.Unlock()
-    s.XP += xp
-}
+    // Current combat DPS: from first hit to last hit
+    current := 0
+    if s.CombatStartTime > 0 {
+        durationMs := s.LastHitTime - s.CombatStartTime
+        if durationMs < 1 {
+            durationMs = 1
+        }
+        // convert ms to seconds for DPS calculation
+        current = int(float64(s.TotalDamage) / (float64(durationMs) / 1000.0))
+    }
+    s.LastCombatDPS = current
 
-// UpdateCredits safely increments credits
-func (s *TrackerState) UpdateCredits(c int) {
-    s.mutex.Lock()
-    defer s.mutex.Unlock()
-    s.Credits += c
-}
-
-// UpdateZone sets the current zone
-func (s *TrackerState) UpdateZone(zone string) {
-    s.mutex.Lock()
-    defer s.mutex.Unlock()
-    if zone != "" {
-        s.Zone = zone
+    // Session DPS: average over stored combat DPS values
+    if len(s.CombatDPSHistory) > 0 {
+        var sum float64
+        for _, d := range s.CombatDPSHistory {
+            sum += d
+        }
+        avg := sum / float64(len(s.CombatDPSHistory))
+        s.LastSessionDPS = int(avg)
+    } else {
+        s.LastSessionDPS = current
     }
 }
 
-// UpdateLatency records ping latency
-func (s *TrackerState) UpdateLatency(ms int) {
-    s.mutex.Lock()
-    defer s.mutex.Unlock()
-    if ms >= 0 {
-        s.LatencyMS = ms
-    }
-}
-
-// UpdateCrit records a damage hit and updates history
+// UpdateCrit processes a damage hit and accumulates combat damage
 func (s *TrackerState) UpdateCrit(damage int) {
     s.mutex.Lock()
     defer s.mutex.Unlock()
-    now := time.Now().Unix()
+    now := time.Now().UnixMilli()
 
+    // Track crit values
     s.LatestCrit = damage
     if damage > s.BiggestCrit {
         s.BiggestCrit = damage
     }
 
-    // reset session if idle >60s
-    if s.CombatStartTime == 0 || now-s.CombatStartTime > 60 {
-        s.CombatStartTime = now
-        s.TotalDamage = 0
-    }
-    s.TotalDamage += damage
-
-    // append and prune damage history older than 4s
-    s.DamageHistory = append(s.DamageHistory, TimedHit{Time: now, Amount: damage})
-    cutoff := now - 4
-    i := 0
-    for _, hit := range s.DamageHistory {
-        if hit.Time >= cutoff {
-            s.DamageHistory[i] = hit
-            i++
-        }
-    }
-    s.DamageHistory = s.DamageHistory[:i]
-}
-
-// calculateBurstDPSLocked computes DPS over last 4s using actual time span
-func (s *TrackerState) calculateBurstDPSLocked() int {
-    now := time.Now().Unix()
-    window := int64(4)
-    var total int
-    var earliest int64 = now
-    for _, hit := range s.DamageHistory {
-        if hit.Time >= now-window {
-            total += hit.Amount
-            if hit.Time < earliest {
-                earliest = hit.Time
-            }
-        }
-    }
-    if total == 0 {
-        return s.LastBurstDPS
-    }
-    duration := now - earliest
-    if duration < 1 {
-        duration = 1
-    }
-    return int(float64(total) / float64(duration))
-}
-
-// calculateSessionDPSLocked computes average DPS since combat start
-func (s *TrackerState) calculateSessionDPSLocked() int {
+    // Start new combat if none active
     if s.CombatStartTime == 0 {
-        return s.LastSessionDPS
+        s.CombatStartTime = now
+        s.LastHitTime = now
+        s.TotalDamage = damage
+        return
     }
-    elapsed := time.Now().Unix() - s.CombatStartTime
-    if elapsed < 1 {
-        return s.LastSessionDPS
-    }
-    return int(float64(s.TotalDamage) / float64(elapsed))
+
+    // Continue current combat: update last hit and accumulate damage
+    s.LastHitTime = now
+    s.TotalDamage += damage
 }
 
-// AddChatMessage appends a chat line
+// UpdateXP increments the XP counter
+func (s *TrackerState) UpdateXP(xp int) {
+    s.mutex.Lock()
+    s.XP += xp
+    s.mutex.Unlock()
+}
+
+// UpdateCredits increments the credits counter
+func (s *TrackerState) UpdateCredits(c int) {
+    s.mutex.Lock()
+    s.Credits += c
+    s.mutex.Unlock()
+}
+
+// UpdateZone sets the current zone
+func (s *TrackerState) UpdateZone(zone string) {
+    s.mutex.Lock()
+    if zone != "" {
+        s.Zone = zone
+    }
+    s.mutex.Unlock()
+}
+
+// UpdateLatency sets the latest latency measurement
+func (s *TrackerState) UpdateLatency(ms int) {
+    s.mutex.Lock()
+    if ms >= 0 {
+        s.LatencyMS = ms
+    }
+    s.mutex.Unlock()
+}
+
+// AddChatMessage appends a chat line to the history buffer
 func (s *TrackerState) AddChatMessage(msg string) {
     s.mutex.Lock()
-    defer s.mutex.Unlock()
     s.ChatHistory = append(s.ChatHistory, msg)
     if len(s.ChatHistory) > maxChatLines {
         s.ChatHistory = s.ChatHistory[len(s.ChatHistory)-maxChatLines:]
     }
+    s.mutex.Unlock()
 }
 
 // AddLoot appends a loot item, ignoring "Lootable Corpse"
@@ -242,10 +217,10 @@ func (s *TrackerState) AddLoot(item string) {
         return
     }
     s.mutex.Lock()
-    defer s.mutex.Unlock()
     s.RecentLoot = append(s.RecentLoot, item)
     if len(s.RecentLoot) > maxLootItems {
         s.RecentLoot = s.RecentLoot[len(s.RecentLoot)-maxLootItems:]
     }
+    s.mutex.Unlock()
 }
 

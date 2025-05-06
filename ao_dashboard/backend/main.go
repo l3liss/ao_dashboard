@@ -16,10 +16,10 @@ func main() {
     }
     fmt.Println("Config loaded.")
 
-    // Create tracker state
-    trackerState := NewTrackerState()
+    // Create tracker state with specified state file path
+    trackerState := NewTrackerState(config.StateFilePath)
 
-    // Start periodic autosave to state.json
+    // Start periodic autosave to state file
     trackerState.StartAutoSave(config.StateFilePath)
     fmt.Println("State autosave started.")
 
@@ -33,10 +33,11 @@ func main() {
     pinger.Start()
     fmt.Println("Pinger started.")
 
-    // Block until CTRL+C
-    c := make(chan os.Signal, 1)
-    signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-    <-c
+    // Block until SIGINT or SIGTERM
+    sigCh := make(chan os.Signal, 1)
+    signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+    <-sigCh
 
     fmt.Println("\nShutting down cleanly.")
 }
+
